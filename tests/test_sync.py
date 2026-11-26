@@ -117,6 +117,19 @@ class TestSyncer:
         catalog = list(session.exec(MediaItem.iter_all()))
         assert catalog and all(item.url.endswith("?sig=new") for item in catalog)
 
+    def test_discover_excludes_attempted(self, syncer, session, kid):
+        media_items = MediaItemFactory.build_batch(3, kid=kid)
+        media_items[0].attempts = 1
+        media_items[1].attempts = DEFAULT_MAX_ATTEMPTS
+        session.add_all(media_items)
+        session.commit()
+        with patch.object(syncer.client, "iter_media", return_value=iter(media_items)):
+            stats = syncer.discover([kid], [MediaKind.PHOTO], None, None)
+        assert stats == SyncStats(discovered=1)
+        assert syncer.hooks.on_discovered.call_args_list == [
+            call(kid, MediaKind.PHOTO, 3),
+        ]
+
     def test_discover_skips_missing_url(self, syncer, session, kid):
         media_items = [
             MediaItemFactory.build(kid=kid),

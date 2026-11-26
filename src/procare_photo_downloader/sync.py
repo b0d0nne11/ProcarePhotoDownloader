@@ -33,7 +33,9 @@ class SyncStats:
     Counts from one sync run, as reported in the summary table.
 
     ``discovered`` and ``already_present`` come from the listing phase based on
-    whether the catalog already records it. The rest come from the download
+    whether the catalog already records it. Items with a failed download attempt
+    count toward neither; the download phase reports them as ``downloaded``,
+    ``failed`` or ``skipped_unavailable``. The rest come from the download
     phase. ``adopted`` is an item whose file was already in place, left by an
     earlier run or a rebuilt catalog.
     """
@@ -134,9 +136,9 @@ class Syncer:
                         MediaItem.upsert().execution_options(populate_existing=True),
                         params=item.model_dump(),
                     ).scalar_one()
-                    if stored.downloaded_at is None:
+                    if stored.downloaded_at is None and not stored.attempts:
                         stats.discovered += 1
-                    else:
+                    if stored.downloaded_at is not None:
                         stats.already_present += 1
                 self.session.commit()
                 self.hooks.on_discovered(kid, kind, found)
